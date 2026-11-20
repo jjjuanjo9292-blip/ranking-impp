@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranking Semanal - Alianza IMPP</title>
+
+    <!-- Librerías de Firebase (Conectan tu página con tu base de datos en la nube) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #121826;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 15px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #38bdf8;
+            margin-bottom: 5px;
+        }
+
+        .estado-conexion {
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 15px;
+            color: #94a3b8;
+        }
+
+        .badge-modo {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .modo-lectura { background-color: #334155; color: #cbd5e1; }
+        .modo-admin { background-color: #16a34a; color: white; }
+
+        .controles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 18px;
+            background-color: #1e293b;
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        input[type="text"], input[type="number"] {
+            background-color: #0f172a;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 5px;
+            padding: 6px 8px;
+        }
+
+        input:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            border-color: transparent;
+        }
+
+        .buscador { width: 220px; font-size: 14px; }
+
+        button {
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            font-size: 13px;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.85; }
+        .btn-admin { background-color: #7c3aed; }
+        .btn-ordenar { background-color: #2563eb; }
+        .btn-whatsapp { background-color: #16a34a; }
+        .btn-copiar { background-color: #0891b2; }
+        .btn-agregar { background-color: #059669; }
+        .btn-exportar { background-color: #d97706; }
+        .btn-reiniciar { background-color: #dc2626; }
+        .btn-borrar { background-color: #475569; padding: 4px 8px; font-size: 12px; }
+
+        .solo-admin { display: none; } /* Se ocultan hasta ingresar la clave */
+
+        .contenedor-tabla {
+            overflow-x: auto;
+            background-color: #1e293b;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #0f172a;
+            color: #38bdf8;
+            padding: 10px 6px;
+            position: sticky;
+            top: 0;
+            border-bottom: 2px solid #334155;
+        }
+
+        td {
+            padding: 8px 5px;
+            border-bottom: 1px solid #334155;
+        }
+
+        tr:hover { background-color: #263449; }
+
+        .col-nombre {
+            text-align: left;
+            font-weight: bold;
+            white-space: nowrap;
+            padding-left: 12px;
+        }
+
+        .input-num { width: 46px; text-align: center; }
+        .input-base { width: 38px; text-align: center; }
+
+        .celda-vs {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .btn-top1 {
+            background: none;
+            color: #475569;
+            padding: 2px 4px;
+            font-size: 15px;
+        }
+        .btn-top1.activo { color: #facc15; }
+        .btn-top1:disabled { cursor: default; }
+
+        .check-grande {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+            accent-color: #22c55e;
+        }
+
+        .total-pts {
+            font-size: 15px;
+            font-weight: bold;
+            color: #4ade80;
+            background-color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏆 Ranking Semanal - Alianza IMPP</h1>
+    <div class="estado-conexion">
+        <span id="texto-estado">⏳ Conectando con la nube...</span>
+        <span id="badge-modo" class="badge-modo modo-lectura">👀 Solo Lectura</span>
+    </div>
+
+    <div class="controles">
+        <input type="text" id="buscador" class="buscador" placeholder="🔍 Buscar jugador..." oninput="dibujarTabla()">
+        <button class="btn-ordenar" onclick="ordenarVista()">🏆 Ordenar Ranking</button>
+        <button class="btn-whatsapp" onclick="enviarWhatsApp()">📲 Enviar a WhatsApp</button>
+        <button class="btn-copiar" onclick="copiarRanking()">📋 Copiar Ranking</button>
+        <button class="btn-exportar" onclick="exportarExcel()">📥 Excel (.csv)</button>
+        <button id="btn-modo-admin" class="btn-admin" onclick="alternarAdmin()">🔒 Modo Admin (R4)</button>
+
+        <!-- Botones visibles solo para administradores -->
+        <button class="btn-agregar solo-admin" onclick="agregarJugador()">➕ Nuevo Jugador</button>
+        <button class="btn-reiniciar solo-admin" onclick="nuevaSemana()">🔄 Nueva Semana</button>
+    </div>
+
+    <div class="contenedor-tabla">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th class="col-nombre">Jugador</th>
+                    <th>Base</th>
+                    <th>M1<br>(20)</th>
+                    <th>M2<br>(20)</th>
+                    <th>M3<br>(20)</th>
+                    <th>M4<br>(20)</th>
+                    <th>VS D1<br>(M / ★)</th>
+                    <th>VS D2<br>(M / ★)</th>
+                    <th>VS D3<br>(M / ★)</th>
+                    <th>VS D4<br>(M / ★)</th>
+                    <th>VS D5<br>(M / ★)</th>
+                    <th>VS D6<br>(M / ★)</th>
+                    <th>Donac.<br>(en k)</th>
+                    <th>Tormenta<br>(45)</th>
+                    <th>TOTAL</th>
+                    <th class="solo-admin">Borrar</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpo-tabla"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // =========================================================
+        // 1. CONFIGURACIÓN DE FIREBASE Y CLAVE DE ADMIN
+        // =========================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCH1cfAdsHjkcDMQ44sdfVpYOhABreAvD0",
+            authDomain: "alianza-impp.firebaseapp.com",
+            databaseURL: "https://alianza-impp-default-rtdb.firebaseio.com",
+            projectId: "alianza-impp",
+            storageBucket: "alianza-impp.firebasestorage.app",
+            messagingSenderId: "272250260191",
+            appId: "1:272250260191:web:c70c60ede6604492e1b76a"
+        };
+
+        // Inicializamos Firebase y apuntamos a la carpeta "jugadores" en la nube
+        firebase.initializeApp(firebaseConfig);
+        const dbRef = firebase.database().ref("alianza_impp/jugadores");
+
+        // Clave para desbloquear la edición (puedes cambiarla cuando quieras)
+        const CLAVE_ADMIN = "IMPP2026";
+        let esAdmin = false;
+        let jugadores = [];
+
+        // Lista inicial de tus 96 jugadores (solo se usa la primera vez si la nube está vacía)
+        const listaInicial = [
+            { nombre: "Jossan19 R4", base: 30 }, { nombre: "viper raj R4", base: 30 },
+            { nombre: "Amtilans R4", base: 30 }, { nombre: "Mbambalekwe R4", base: 30 },
+            { nombre: "Sonn Goku R4", base: 30 }, { nombre: "IMerlin R4", base: 30 },
+            { nombre: "Maj Daviid R4", base: 30 }, { nombre: "PHANTOM OM", base: 30 },
+            { nombre: "Proseiro10", base: 30 }, { nombre: "SisuSC", base: 30 },
+            { nombre: "Dinesty XXX R4", base: 30 }, { nombre: "Doctor Malasunto", base: 30 },
+            { nombre: "B A K A i", base: 30 }, { nombre: "Crazy Sphynx", base: 30 },
+            { nombre: "Sobrevivente mágico", base: 30 }, { nombre: "Keilaaa2024", base: 30 },
+            { nombre: "Laplacy", base: 30 }, { nombre: "Hellen Reolon", base: 30 },
+            { nombre: "Kaike", base: 30 }, { nombre: "Pam4gYgy", base: 30 },
+            { nombre: "Balėrion", base: 30 }, { nombre: "MuxaXXL", base: 30 },
+            { nombre: "Max Luso", base: 30 }, { nombre: "saper4512", base: 30 },
+            { nombre: "king selva", base: 30 }, { nombre: "Santo PPecador", base: 30 },
+            { nombre: "Kamel mahdi", base: 30 }, { nombre: "ViralBroo", base: 30 },
+            { nombre: "The Warriorsvip2", base: 30 }, { nombre: "Sr Judas", base: 30 },
+            { nombre: "Mohamed Enzo", base: 30 }, { nombre: "Lord Noe12", base: 30 },
+            { nombre: "nano s 2", base: 30 }, { nombre: "LAMPIÃOimp", base: 30 },
+            { nombre: "Débora Benaia", base: 30 }, { nombre: "l Yusha", base: 30 },
+            { nombre: "TAWAG", base: 30 }, { nombre: "1 SGT GEOVANE 609 R4", base: 29 },
+            { nombre: "Miau Lee R4", base: 29 }, { nombre: "Patitofeo28", base: 29 },
+            { nombre: "Séneca", base: 29 }, { nombre: "masanori1969", base: 29 },
+            { nombre: "LunarNemesis", base: 29 }, { nombre: "ShaDY", base: 29 },
+            { nombre: "Lemanel", base: 29 }, { nombre: "Mitsch1291", base: 29 },
+            { nombre: "Cometosee", base: 29 }, { nombre: "Azureknight", base: 29 },
+            { nombre: "Zero T22", base: 29 }, { nombre: "acenaétriste", base: 29 },
+            { nombre: "Kyrif", base: 29 }, { nombre: "Jntxd", base: 29 },
+            { nombre: "BoOKWoRM", base: 29 }, { nombre: "nayOxy", base: 29 },
+            { nombre: "Bonfin99", base: 29 }, { nombre: "Hayato26", base: 29 },
+            { nombre: "DrakA", base: 29 }, { nombre: "Juani Ninja", base: 29 },
+            { nombre: "MARKOTHECAT", base: 29 }, { nombre: "ABO JON", base: 29 },
+            { nombre: "hurricannee", base: 29 }, { nombre: "ReSalgado", base: 29 },
+            { nombre: "Queen々", base: 29 }, { nombre: "Milooo73", base: 29 },
+            { nombre: "지우커몬커몬", base: 29 }, { nombre: "Dragon Sin city", base: 29 },
+            { nombre: "Sephiroth The One", base: 29 }, { nombre: "SouzaLP3", base: 29 },
+            { nombre: "Wendyluu", base: 29 }, { nombre: "Omen1969", base: 28 },
+            { nombre: "iToon99", base: 28 }, { nombre: "ALEJANDRO82", base: 28 },
+            { nombre: "R Alleena", base: 28 }, { nombre: "+BooM+", base: 28 },
+            { nombre: "Caasseeyy", base: 28 }, { nombre: "marisol s", base: 28 },
+            { nombre: "anaaguiar", base: 28 }, { nombre: "Pattyzinha87", base: 28 },
+            { nombre: "moreno2976", base: 28 }, { nombre: "FARM MAJ DAVID", base: 28 },
+            { nombre: "CaelumRage", base: 28 }, { nombre: "eldorado domino", base: 27 },
+            { nombre: "Amigabiga", base: 27 }, { nombre: "el meior33", base: 27 },
+            { nombre: "Matías Valdivia", base: 27 }, { nombre: "Feitiço de Têmis", base: 27 },
+            { nombre: "talo jr", base: 27 }, { nombre: "worm", base: 27 },
+            { nombre: "KyRIF", base: 26 }, { nombre: "Sssend", base: 26 },
+            { nombre: "SiTololKepO", base: 26 }, { nombre: "SILUMAN ANJING", base: 26 },
+            { nombre: "Zahraa Al Helwa", base: 26 }, { nombre: "DUVAN", base: 30 },
+            { nombre: "MOOSEPACK", base: 29 }, { nombre: "El do Mar", base: 25 }
+        ];
+
+        // =========================================================
+        // 2. REGLAS DE PUNTUACIÓN (Igual que tu PSeInt)
+        // =========================================================
+        function calcularPuntosVS(millones, esTop1) {
+            let pts = 0;
+            if (millones >= 30) pts = 20;
+            else if (millones >= 15) pts = 15;
+            else if (millones >= 7.2) pts = 10;
+            else if (millones >= 3.6) pts = 5;
+            if (esTop1 === true) pts += 1;
+            return pts;
+        }
+
+        function calcularPuntosDonacion(miles) {
+            if (miles >= 90) return 45;
+            if (miles >= 70) return 35;
+            if (miles >= 50) return 25;
+            if (miles >= 30) return 15;
+            return 0;
+        }
+
+        function calcularTotalJugador(j) {
+            let total = 0;
+            for (let i = 0; i < 4; i++) {
+                if (j.marshall && j.marshall[i]) total += 20;
+            }
+            for (let i = 0; i < 6; i++) {
+                const m = (j.vs && j.vs[i]) ? j.vs[i] : 0;
+                const t = (j.top1 && j.top1[i]) ? j.top1[i] : false;
+                total += calcularPuntosVS(m, t);
+            }
+            total += calcularPuntosDonacion(j.donacion || 0);
+            if (j.tormenta) total += 45;
+            return total;
+        }
+
+        // =========================================================
+        // 3. SINCRONIZACIÓN EN VIVO CON FIREBASE
+        // =========================================================
+        dbRef.on("value", (snapshot) => {
+            const datos = snapshot.val();
+            document.getElementById("texto-estado").textContent = "🟢 Conectado en vivo";
+
+            if (datos) {
+                jugadores = Array.isArray(datos) ? datos : Object.values(datos);
+                dibujarTabla();
+            } else {
+                // Primera vez: subimos los 96 jugadores a Firebase
+                jugadores = listaInicial.map((item, idx) => ({
+                    id: idx + 1,
+                    nombre: item.nombre,
+                    base: item.base,
+                    marshall: [false, false, false, false],
+                    vs: [0, 0, 0, 0, 0, 0],
+                    top1: [false, false, false, false, false, false],
+                    donacion: 0,
+                    tormenta: false
+                }));
+                guardarEnNube();
+            }
+        });
+
+        function guardarEnNube() {
+            if (!esAdmin) return;
+            dbRef.set(jugadores);
+        }
+
+        // =========================================================
+        // 4. MODO ADMINISTRADOR (R4) VS SOLO LECTURA
+        // =========================================================
+        function alternarAdmin() {
+            if (esAdmin) {
+                esAdmin = false;
+                actualizarInterfazAdmin();
+                return;
+            }
+            const clave = prompt("Ingresa la clave de Administrador (R4):");
+            if (clave === CLAVE_ADMIN) {
+                esAdmin = true;
+                actualizarInterfazAdmin();
+            } else if (clave !== null) {
+                alert("❌ Clave incorrecta.");
+            }
+        }
+
+        function actualizarInterfazAdmin() {
+            const badge = document.getElementById("badge-modo");
+            const btnAdmin = document.getElementById("btn-modo-admin");
+            const elementosAdmin = document.querySelectorAll(".solo-admin");
+
+            if (esAdmin) {
+                badge.textContent = "🔓 Modo Admin (Editando)";
+                badge.className = "badge-modo modo-admin";
+                btnAdmin.textContent = "🔒 Salir de Admin";
+                elementosAdmin.forEach(el => el.style.display = "");
+            } else {
+                badge.textContent = "👀 Solo Lectura";
+                badge.className = "badge-modo modo-lectura";
+                btnAdmin.textContent = "🔒 Modo Admin (R4)";
+                elementosAdmin.forEach(el => el.style.display = "none");
+            }
+            dibujarTabla();
+        }
+
+        // =========================================================
+        // 5. DIBUJAR TABLA
+        // =========================================================
+        function dibujarTabla() {
+            const tbody = document.getElementById("cuerpo-tabla");
+            const busqueda = document.getElementById("buscador").value.toLowerCase();
+            const deshabilitado = esAdmin ? "" : "disabled";
+            tbody.innerHTML = "";
+
+            let contador = 1;
+
+            for (let i = 0; i < jugadores.length; i++) {
+                const j = jugadores[i];
+                if (!j.nombre.toLowerCase().includes(busqueda)) continue;
+
+                const total = calcularTotalJugador(j);
+                const fila = document.createElement("tr");
+
+                let htmlMarshall = "";
+                for (let m = 0; m < 4; m++) {
+                    const checked = (j.marshall && j.marshall[m]) ? "checked" : "";
+                    htmlMarshall += `<td><input type="checkbox" class="check-grande" ${checked} ${deshabilitado} onchange="cambiarMarshall(${i}, ${m}, this.checked)"></td>`;
+                }
+
+                let htmlVS = "";
+                for (let d = 0; d < 6; d++) {
+                    const valVS = (j.vs && j.vs[d]) ? j.vs[d] : 0;
+                    const claseEstrella = (j.top1 && j.top1[d]) ? "btn-top1 activo" : "btn-top1";
+                    htmlVS += `
+                        <td>
+                            <div class="celda-vs">
+                                <input type="number" step="0.1" min="0" class="input-num" value="${valVS}" ${deshabilitado} onchange="cambiarVS(${i}, ${d}, this.value)">
+                                <button class="${claseEstrella}" ${deshabilitado} onclick="alternarTop1(${i}, ${d})">★</button>
+                            </div>
+                        </td>`;
+                }
+
+                const tormentaChecked = j.tormenta ? "checked" : "";
+                const celdaBorrar = esAdmin ? `<td><button class="btn-borrar" onclick="eliminarJugador(${i})">✖</button></td>` : "";
+
+                fila.innerHTML = `
+                    <td>${contador}</td>
+                    <td class="col-nombre">${j.nombre}</td>
+                    <td><input type="number" class="input-base" value="${j.base}" ${deshabilitado} onchange="cambiarBase(${i}, this.value)"></td>
+                    ${htmlMarshall}
+                    ${htmlVS}
+                    <td><input type="number" min="0" class="input-num" value="${j.donacion || 0}" ${deshabilitado} onchange="cambiarDonacion(${i}, this.value)"></td>
+                    <td><input type="checkbox" class="check-grande" ${tormentaChecked} ${deshabilitado} onchange="cambiarTormenta(${i}, this.checked)"></td>
+                    <td class="total-pts">${total}</td>
+                    ${celdaBorrar}
+                `;
+                tbody.appendChild(fila);
+                contador++;
+            }
+        }
+
+        // =========================================================
+        // 6. EDICIÓN DE DATOS (Solo si esAdmin = true)
+        // =========================================================
+        function cambiarBase(i, val) { jugadores[i].base = Number(val) || 0; guardarEnNube(); }
+        function cambiarMarshall(i, m, checked) { jugadores[i].marshall[m] = checked; guardarEnNube(); }
+        function cambiarVS(i, d, val) { jugadores[i].vs[d] = parseFloat(val) || 0; guardarEnNube(); }
+        function alternarTop1(i, d) { jugadores[i].top1[d] = !jugadores[i].top1[d]; guardarEnNube(); }
+        function cambiarDonacion(i, val) { jugadores[i].donacion = parseFloat(val) || 0; guardarEnNube(); }
+        function cambiarTormenta(i, checked) { jugadores[i].tormenta = checked; guardarEnNube(); }
+
+        function ordenarVista() {
+            jugadores.sort((a, b) => calcularTotalJugador(b) - calcularTotalJugador(a));
+            if (esAdmin) guardarEnNube();
+            else dibujarTabla();
+        }
+
+        function agregarJugador() {
+            if (!esAdmin) return;
+            const nombre = prompt("Nombre del nuevo jugador:");
+            if (!nombre || !nombre.trim()) return;
+            const base = parseInt(prompt("Nivel de base:")) || 25;
+            jugadores.push({
+                id: Date.now(), nombre: nombre.trim(), base: base,
+                marshall: [false, false, false, false],
+                vs: [0, 0, 0, 0, 0, 0],
+                top1: [false, false, false, false, false, false],
+                donacion: 0, tormenta: false
+            });
+            guardarEnNube();
+        }
+
+        function eliminarJugador(i) {
+            if (!esAdmin) return;
+            if (confirm("¿Eliminar a " + jugadores[i].nombre + "?")) {
+                jugadores.splice(i, 1);
+                guardarEnNube();
+            }
+        }
+
+        function nuevaSemana() {
+            if (!esAdmin) return;
+            if (!confirm("¿Reiniciar TODOS los puntajes a 0 en la nube para nueva semana?")) return;
+            jugadores.forEach(j => {
+                j.marshall = [false, false, false, false];
+                j.vs = [0, 0, 0, 0, 0, 0];
+                j.top1 = [false, false, false, false, false, false];
+                j.donacion = 0;
+                j.tormenta = false;
+            });
+            guardarEnNube();
+        }
+
+        // =========================================================
+        // 7. ENVIAR TABLA DE POSICIONES (WhatsApp, Copiar y Excel)
+        // =========================================================
+        function generarTextoRanking() {
+            // Creamos una copia ordenada de mayor a menor sin alterar la tabla original
+            const ranking = [...jugadores].sort((a, b) => calcularTotalJugador(b) - calcularTotalJugador(a));
+            const fecha = new Date().toLocaleDateString('es-CO');
+
+            let texto = `🏆 *TABLA DE POSICIONES - ALIANZA IMPP* 🏆\n`;
+            texto += `📅 Corte: ${fecha}\n`;
+            texto += `━━━━━━━━━━━━━━━━━━━━\n`;
+
+            ranking.forEach((j, idx) => {
+                const pos = idx + 1;
+                const pts = calcularTotalJugador(j);
+                let medalla = `${pos}.`;
+                if (pos === 1) medalla = "🥇";
+                else if (pos === 2) medalla = "🥈";
+                else if (pos === 3) medalla = "🥉";
+
+                texto += `${medalla} *${j.nombre}* — ${pts} pts\n`;
+            });
+
+            texto += `━━━━━━━━━━━━━━━━━━━━\n`;
+            texto += `🔥 ¡Gran trabajo equipo!`;
+            return texto;
+        }
+
+        function copiarRanking() {
+            const texto = generarTextoRanking();
+            navigator.clipboard.writeText(texto).then(() => {
+                alert("✅ ¡Tabla de posiciones copiada! Ahora solo pégala en el grupo de WhatsApp o Discord.");
+            });
+        }
+
+        function enviarWhatsApp() {
+            const texto = generarTextoRanking();
+            const url = "https://wa.me/?text=" + encodeURIComponent(texto);
+            window.open(url, "_blank");
+        }
+
+        function exportarExcel() {
+            let csv = "Posición;Jugador;Nivel de Base;Marshall 1;Marshall 2;Marshall 3;Marshall 4;VS Día 1;VS Día 2;VS Día 3;VS Día 4;VS Día 5;VS Día 6;Donaciones;Tormenta;Puntos Totales\n";
+            const ranking = [...jugadores].sort((a, b) => calcularTotalJugador(b) - calcularTotalJugador(a));
+
+            ranking.forEach((j, idx) => {
+                const m = j.marshall.map(x => x ? 20 : 0);
+                const v = j.vs.map((val, d) => calcularPuntosVS(val, j.top1[d]));
+                const don = calcularPuntosDonacion(j.donacion);
+                const tor = j.tormenta ? 45 : 0;
+                const tot = calcularTotalJugador(j);
+                csv += `${idx + 1};${j.nombre};${j.base};${m[0]};${m[1]};${m[2]};${m[3]};${v[0]};${v[1]};${v[2]};${v[3]};${v[4]};${v[5]};${don};${tor};${tot}\n`;
+            });
+
+            const archivo = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+            const enlace = document.createElement("a");
+            enlace.href = URL.createObjectURL(archivo);
+            enlace.download = "Ranking_Alianza_IMPP.csv";
+            enlace.click();
+        }
+    </script>
+</body>
+</html>
