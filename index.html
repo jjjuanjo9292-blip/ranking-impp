@@ -131,6 +131,7 @@
 
         .input-num { width: 46px; text-align: center; }
         .input-base { width: 38px; text-align: center; }
+        .input-nombre { width: 150px; font-weight: bold; }
 
         .celda-vs {
             display: flex;
@@ -474,7 +475,11 @@ input[type="checkbox"]:disabled,
 
                 fila.innerHTML = `
                     <td>${contador}</td>
-                    <td class="col-nombre">${j.nombre}</td>
+                    <td class="col-nombre">
+    ${esAdmin 
+        ? `<input type="text" class="input-nombre" value="${j.nombre.replace(/"/g, '&quot;')}" onchange="cambiarNombre(${i}, this.value)">` 
+        : j.nombre}
+</td>
                     <td><input type="number" class="input-base" value="${j.base}" ${deshabilitado} onchange="cambiarBase(${i}, this.value)"></td>
                     ${htmlMarshall}
                     ${htmlVS}
@@ -491,6 +496,16 @@ input[type="checkbox"]:disabled,
         // =========================================================
         // 6. EDICIÓN DE DATOS (Solo si esAdmin = true)
         // =========================================================
+        function cambiarNombre(i, val) {
+    const nuevoNombre = val.trim();
+    if (!nuevoNombre) {
+        alert("⚠️ El nombre del jugador no puede quedar vacío.");
+        dibujarTabla();
+        return;
+    }
+    jugadores[i].nombre = nuevoNombre;
+    guardarEnNube();
+}
         function cambiarBase(i, val) { jugadores[i].base = Number(val) || 0; guardarEnNube(); }
         function cambiarMarshall(i, m, checked) { jugadores[i].marshall[m] = checked; guardarEnNube(); }
         function cambiarVS(i, d, val) { jugadores[i].vs[d] = parseFloat(val) || 0; guardarEnNube(); }
